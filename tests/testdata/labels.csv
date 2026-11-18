@@ -1,0 +1,8 @@
+﻿id,title,bpm,camelot,energy,genre_auto,mood_auto,genre_final,mood_final
+trk_0001,t1_warmup_am,123.05,8A,2.9,melodic/progressive 0.34; tech house 0.20; deep house 0.10,律动 groove 0.34; emo/低沉 0.27; 舒缓/梦幻 0.12,melodic/progressive,热情/燃; 欢快
+trk_0002,t2_build_em,123.05,9A,4.7,melodic/progressive 0.37; tech house 0.24; deep house 0.11,律动 groove 0.38; emo/低沉 0.22; 空灵/氛围 0.14,techno,律动 groove
+trk_0003,t3_build_g,123.05,9B,6.3,melodic/progressive 0.30; tech house 0.20; deep house 0.09,律动 groove 0.41; emo/低沉 0.20; 空灵/氛围 0.10,melodic/progressive,梦幻流行
+trk_0004,t4_peak_d,123.05,10B,8.1,tech house 0.20; melodic/progressive 0.16; dubstep/bass 0.15,律动 groove 0.40; emo/低沉 0.20; 空灵/氛围 0.13,tech house,律动 groove
+trk_0005,t5_peak_a,129.2,11B,8.5,melodic/progressive 0.30; tech house 0.16; deep house 0.09,律动 groove 0.32; emo/低沉 0.23; 舒缓/梦幻 0.14,melodic/progressive,律动 groove
+trk_0006,t6_close_e,123.05,12B,4.4,melodic/progressive 0.35; tech house 0.23; deep house 0.10,律动 groove 0.39; emo/低沉 0.22; 空灵/氛围 0.14,melodic/progressive,律动 groove
+trk_0007,t7_odd_db,129.2,3B,5.8,melodic/progressive 0.26; tech house 0.23; deep house 0.10,律动 groove 0.49; emo/低沉 0.15; 空灵/氛围 0.12,melodic/progressive,律动 groove

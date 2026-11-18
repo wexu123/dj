@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DJ 排歌工作流</title>
+<style>
+  /* ============ 设计令牌 ============ */
+  :root {
+    --bg: #0d1117; --card: #151b24; --card-in: #10161e;
+    --line: #232b36; --line-soft: #1c232e;
+    --fg: #e8eef5; --dim: #8b98a7; --faint: #5d6b7a;
+    --accent: #5b8cff; --accent-soft: rgba(91,140,255,.13);
+    --ok: #3fb970; --warn: #d9a13c; --chip: #202834;
+    --radius: 10px; --radius-s: 7px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.65 "Segoe UI", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 顶栏 ============ */
+  header {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 28px; background: rgba(13,17,23,.92);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  header h1 .logo { color: var(--accent); margin-right: 6px; }
+  nav.top { display: flex; gap: 4px; margin-left: 8px; }
+  nav.top a {
+    color: var(--dim); text-decoration: none; font-size: 12.5px;
+    padding: 5px 12px; border-radius: 999px; transition: all .18s ease;
+  }
+  nav.top a:hover { color: var(--fg); background: var(--chip); }
+  .pill {
+    margin-left: auto; padding: 5px 15px; border-radius: 999px;
+    background: var(--chip); color: var(--dim); font-size: 12.5px;
+    transition: all .25s ease; border: 1px solid transparent;
+  }
+  .pill.busy {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: rgba(91,140,255,.25);
+  }
+
+  /* ============ 布局 ============ */
+  main { max-width: 1180px; margin: 0 auto; padding: 26px 28px 70px; }
+  section.card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 22px 24px; margin-bottom: 24px;
+    scroll-margin-top: 78px;
+  }
+
+  /* 卡片头：编号 + 标题 + 说明 + 右侧动作 */
+  .card-head {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .card-head .step-no {
+    display: inline-flex; width: 26px; height: 26px; border-radius: 8px;
+    background: var(--accent-soft); color: var(--accent);
+    align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; flex: none;
+  }
+  .card-head h2 { margin: 0; font-size: 15.5px; font-weight: 620; }
+  .card-head .desc { color: var(--faint); font-size: 12px; margin-left: 2px; }
+  .card-head .spacer { margin-left: auto; }
+
+  /* ============ 按钮体系 ============ */
+  button, a.btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--accent); color: #fff; border: 0; border-radius: var(--radius-s);
+    padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+    text-decoration: none; white-space: nowrap;
+    transition: filter .15s ease, transform .08s ease, background .15s ease;
+  }
+  button:hover, a.btn:hover { filter: brightness(1.12); }
+  button:active, a.btn:active { transform: scale(.98); }
+  button:disabled { opacity: .45; cursor: default; filter: none; }
+  button.ghost, a.btn.ghost { background: var(--chip); color: var(--fg); }
+  button.ghost:hover, a.btn.ghost:hover { background: #2a3442; filter: none; }
+  button.quiet {
+    background: transparent; color: var(--dim); padding: 6px 10px;
+    border: 1px solid var(--line);
+  }
+  button.quiet:hover { color: var(--fg); border-color: var(--faint); filter: none; }
+
+  /* ============ 表单 ============ */
+  input[type=text], input[type=number], select {
+    background: var(--card-in); color: var(--fg);
+    border: 1px solid var(--line); border-radius: var(--radius-s);
+    padding: 8px 12px; outline: none; font-size: 13px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  input::placeholder { color: var(--faint); }
+  label.field { display: inline-flex; align-items: center; gap: 7px; color: var(--dim); font-size: 12.5px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* 主操作行 */
+  .action-bar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 14px; background: var(--card-in);
+    border: 1px solid var(--line-soft); border-radius: var(--radius);
+  }
+  .action-bar #dirInput { flex: 1; min-width: 280px; }
+  .sub-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .sub-actions .gap { width: 14px; }
+
+  /* 折叠的高级设置 */
+  details.adv {
+    margin-top: 12px; border: 1px solid var(--line-soft);
+    border-radius: var(--radius-s); background: var(--card-in);
+  }
+  details.adv summary {
+    cursor: pointer; padding: 9px 14px; font-size: 12.5px; color: var(--dim);
+    user-select: none; list-style: none;
+  }
+  details.adv summary::-webkit-details-marker { display: none; }
+  details.adv summary::before { content: "▸ "; color: var(--faint); }
+  details.adv[open] summary::before { content: "▾ "; }
+  details.adv summary:hover { color: var(--fg); }
+  details.adv .inner { padding: 2px 14px 14px; }
+
+  /* ============ 进度与日志 ============ */
+  .progress-wrap {
+    height: 5px; background: var(--chip); border-radius: 999px;
+    overflow: hidden; margin: 16px 0 6px;
+  }
+  .progress-wrap i {
+    display: block; height: 100%; width: 0; background: var(--accent);
+    border-radius: 999px; transition: width .4s ease;
+  }
+  #stepText { color: var(--dim); font-size: 12.5px; }
+  #log {
+    background: var(--card-in); border: 1px solid var(--line-soft);
+    border-radius: var(--radius-s); padding: 11px 14px; margin-top: 10px;
+    min-height: 44px; max-height: 170px; overflow-y: auto;
+    color: var(--dim); font-size: 12px; font-family: Consolas, "Courier New", monospace;
+    white-space: pre-wrap; line-height: 1.75;
+  }
+  .hint { color: var(--faint); font-size: 12px; margin: 10px 0 0; }
+  .hint b { color: var(--dim); font-weight: 500; }
+
+  /* ============ 表格 ============ */
+  .table-wrap {
+    border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 9px 12px; text-align: left; }
+  thead th {
+    background: var(--card-in); color: var(--faint);
+    font-size: 11.5px; font-weight: 600; letter-spacing: .4px;
+    white-space: nowrap; border-bottom: 1px solid var(--line);
+    text-transform: uppercase;
+  }
+  tbody td { border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background .2s ease; }
+  tbody tr:hover { background: rgba(91,140,255,.05); }
+  tbody tr.saved { background: rgba(63,185,112,.13); }
+  td.num, th.num { font-variant-numeric: tabular-nums; }
+  td.title { font-weight: 500; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 校正列：用底色把「人工区」和「自动区」在视觉上分开 */
+  th.edit-col, td.edit-col { background: rgba(255,255,255,.018); border-left: 1px solid var(--line-soft); }
+  td input.fin {
+    width: 100%; min-width: 118px; padding: 5px 9px; font-size: 12.5px;
+    background: var(--card-in); border: 1px solid transparent;
+    border-radius: var(--radius-s); color: var(--fg); outline: none;
+    transition: border-color .15s ease;
+  }
+  td input.fin:hover { border-color: var(--line); }
+  td input.fin:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+  .row-acts { white-space: nowrap; text-align: right; }
+  .row-acts button { padding: 5px 11px; font-size: 12px; }
+  .row-acts button.save-btn { background: var(--chip); color: var(--dim); }
+  .row-acts button.save-btn:hover { color: var(--fg); background: #2a3442; filter: none; }
+
+  /* 标签徽章 */
+  .chip {
+    display: inline-block; background: var(--chip); border-radius: 999px;
+    padding: 2px 10px; margin: 1.5px 3px 1.5px 0; font-size: 11px; color: var(--dim);
+    border: 1px solid transparent;
+  }
+  .chip b { color: var(--fg); font-weight: 550; }
+  .chip.src { color: var(--accent); border-color: rgba(91,140,255,.25); }
+  .badge {
+    padding: 2px 10px; border-radius: 999px; font-size: 11px; white-space: nowrap;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .ebar {
+    width: 64px; height: 5px; background: var(--chip); border-radius: 999px;
+    overflow: hidden; display: inline-block; vertical-align: middle;
+  }
+  .ebar i { display: block; height: 100%; background: linear-gradient(90deg, #3fb970, #d9a13c, #e05d5d); }
+  .hint-txt { color: var(--faint); font-size: 12px; }
+  .warn-txt { color: var(--warn); font-size: 12.5px; margin-top: 10px; }
+  .empty {
+    text-align: center; color: var(--faint); padding: 30px 0;
+    font-size: 13px;
+  }
+
+  /* ============ 找相似面板 ============ */
+  #similarCard { border-color: rgba(91,140,255,.35); }
+  #similarCard .card-head .step-no {
+    background: var(--accent); color: #fff;
+  }
+  .sim-item {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 6px; border-bottom: 1px solid var(--line-soft);
+  }
+  .sim-item:last-child { border-bottom: 0; }
+  .sim-rank { color: var(--faint); font-family: Consolas, monospace; width: 26px; font-size: 12px; }
+  .sim-main { min-width: 170px; flex: 1; }
+  .sim-title { font-weight: 520; }
+  .sim-meta { color: var(--faint); font-size: 11.5px; }
+  .sim-score { text-align: right; width: 82px; }
+  .sim-score b { font-size: 15px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .sim-chips { min-width: 140px; }
+  .sim-acts { display: flex; gap: 6px; align-items: center; }
+  .sim-acts select { padding: 4px 8px; font-size: 12px; }
+  .sim-acts button { padding: 5px 11px; font-size: 12px; }
+
+  /* ============ setlist ============ */
+  .gen-bar {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 14px; background: var(--card-in);
+    border: 1px solid var(--line-soft); border-radius: var(--radius);
+  }
+  #setlist { margin: 16px 0 0; padding: 0; list-style: none; }
+  #setlist li {
+    display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
+    padding: 10px 8px; border-bottom: 1px solid var(--line-soft);
+  }
+  #setlist li:last-child { border-bottom: 0; }
+  #setlist .no { color: var(--faint); width: 26px; font-family: Consolas, monospace; font-size: 12px; }
+  #setlist .ttl { font-weight: 520; min-width: 170px; }
+  #setlist .meta { color: var(--faint); font-size: 12px; white-space: nowrap; }
+  svg.energy {
+    width: 100%; height: 110px; margin-top: 16px;
+    background: var(--card-in); border-radius: var(--radius-s);
+    border: 1px solid var(--line-soft);
+  }
+
+  /* ============ 模块 ============ */
+  .mod-bar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 12px 14px; background: var(--card-in);
+    border: 1px solid var(--line-soft); border-radius: var(--radius);
+    margin-bottom: 14px;
+  }
+  .mod-bar select { min-width: 200px; }
+
+  footer {
+    text-align: center; color: var(--faint); font-size: 11.5px;
+    padding: 8px 20px 30px;
+  }
+
+  /* 窄屏 */
+  @media (max-width: 860px) {
+    nav.top { display: none; }
+    td.title { max-width: 150px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="logo">◈</span>DJ 排歌工作流</h1>
+  <nav class="top">
+    <a href="#sec1">① 曲库处理</a>
+    <a href="#sec2">② 标签校正</a>
+    <a href="#sec3">③ 生成 setlist</a>
+    <a href="#sec4">④ 歌曲模块</a>
+  </nav>
+  <span class="pill" id="statusPill">空闲</span>
+</header>
+
+<main>
+
+  <!-- ① 曲库处理 -->
+  <section class="card" id="sec1">
+    <div class="card-head">
+      <span class="step-no">1</span>
+      <h2>曲库处理</h2>
+      <span class="desc">扫描 → 提取 BPM/调性/能量 → 打曲风和听感标签</span>
+    </div>
+
+    <div class="action-bar">
+      <input type="text" id="dirInput" placeholder="音乐目录，例如 D:\Music\MyTracks">
+      <button id="btnPipeline">▶ 一键处理</button>
+    </div>
+
+    <div class="sub-actions">
+      <button class="ghost" id="btnPredict">智能补标</button>
+      <button class="ghost" id="btnTrain">训练分类器</button>
+      <button class="ghost" id="btnGenreOnline">联网曲风纠正</button>
+    </div>
+    <p class="hint">
+      <b>智能补标</b>：按你校正过的标签给未确认的歌归类（校正越多越准）·
+      <b>训练分类器</b>：校正数据足够后训练模型式分类器 ·
+      <b>联网曲风纠正</b>：按歌名/艺人查 MusicBrainz + iTunes 权威曲风
+    </p>
+
+    <details class="adv">
+      <summary>高级设置（AcoustID 听音识曲，可选）</summary>
+      <div class="inner">
+        <div class="row">
+          <input type="text" id="acoustidKey" placeholder="AcoustID Key，acoustid.org/register 免费领取" style="flex:1; min-width:320px">
+          <button class="quiet" id="btnSaveKey">保存 Key</button>
+        </div>
+        <p class="hint">填了 Key 后，联网纠正会先用音频指纹识曲（不依赖文件名，最准）。</p>
+      </div>
+    </details>
+
+    <div class="progress-wrap"><i id="progressBar"></i></div>
+    <div id="stepText">输入目录后点击「一键处理」。</div>
+    <div id="log"></div>
+  </section>
+
+  <!-- ② 曲库与标签校正 -->
+  <section class="card" id="sec2">
+    <div class="card-head">
+      <span class="step-no">2</span>
+      <h2>曲库与标签校正</h2>
+      <span class="desc">右侧两列是人工校正区，改完点行尾「保存」</span>
+      <span class="spacer"></span>
+      <a class="btn ghost" id="btnExportLabels" href="/api/export-labels">导出标签 CSV</a>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>标题</th>
+            <th class="num">BPM</th><th>调</th><th>能量</th>
+            <th>曲风 · 自动</th><th>听感 · 自动</th>
+            <th class="edit-col">曲风 · 校正</th>
+            <th class="edit-col">听感 · 校正</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="emptyState">暂无曲目，先在上方输入曲库目录点「一键处理」。</div>
+    </div>
+    <p class="hint">校正列支持多标签（用分号分隔，如 <b>热情/燃; 欢快</b>）；清空 = 取消人工确认，回退到自动标签。</p>
+  </section>
+
+  <!-- ♪ 找相似 -->
+  <section class="card" id="similarCard" style="display:none">
+    <div class="card-head">
+      <span class="step-no">♪</span>
+      <h2>与《<span id="simTarget"></span>》相似的歌</h2>
+      <span class="spacer"></span>
+      <button class="quiet" id="simClose">关闭</button>
+    </div>
+    <p class="hint">相似度 = 听感嵌入 65% + 混音属性 35%（调性兼容 / BPM 接近 / 能量接近）。先选好目标模块，点「＋加入」收集。</p>
+    <div id="simList"></div>
+  </section>
+
+  <!-- ③ 生成 setlist -->
+  <section class="card" id="sec3">
+    <div class="card-head">
+      <span class="step-no">3</span>
+      <h2>生成 setlist</h2>
+      <span class="desc">按能量曲线排段落：暖场 → 爬升 → peak → 收尾</span>
+    </div>
+
+    <div class="gen-bar">
+      <label class="field">时长（分钟）
+        <input type="number" id="minutesInput" value="60" min="5" max="240" style="width:82px">
+      </label>
+      <label class="field">起始曲
+        <select id="startSelect"><option value="">自动（能量最低）</option></select>
+      </label>
+      <span class="spacer" style="margin-left:auto"></span>
+      <button id="btnSetlist">生成 setlist</button>
+      <button class="ghost" id="btnExportSetlist">导出 setlist CSV</button>
+    </div>
+
+    <ol id="setlist"></ol>
+    <div class="warn-txt" id="setWarn"></div>
+    <svg class="energy" id="energySvg" viewBox="0 0 600 110" preserveAspectRatio="none" style="display:none">
+      <polyline id="energyLine" fill="none" stroke="#5b8cff" stroke-width="2"/>
+    </svg>
+  </section>
+
+  <!-- ④ 歌曲模块 -->
+  <section class="card" id="sec4">
+    <div class="card-head">
+      <span class="step-no">4</span>
+      <h2>歌曲模块</h2>
+      <span class="desc">常用组合存成模块随时复用（暖场包 / peak 段 / 演出候选…）</span>
+    </div>
+
+    <div class="mod-bar">
+      <select id="moduleSelect"></select>
+      <button class="quiet" id="btnNewModule">新建模块</button>
+      <button class="quiet" id="btnDelModule">删除模块</button>
+      <span class="spacer" style="margin-left:auto"></span>
+      <button class="ghost" id="btnExportModule">导出模块 CSV</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">#</th><th>标题</th>
+            <th class="num">BPM</th><th>调</th><th class="num">能量</th>
+            <th>曲风 · 自动</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="moduleTbody"></tbody>
+      </table>
+      <div class="empty" id="moduleEmpty">还没有模块。点「新建模块」创建，然后在曲库或找相似列表里点「＋加入」。</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>DJ 排歌工作流 · 本地运行 · 数据存于 library.db</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+let tracks = [];
+let lastRunning = null;
+let lastLog = "";
+let lastSetlist = null;
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g,
+    c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+function chips(tags) {
+  if (!tags || !tags.length) return '<span class="hint-txt">—</span>';
+  return tags.map(([t, p]) =>
+    `<span class="chip"><b>${esc(t)}</b> ${Math.round(p * 100)}%</span>`).join("");
+}
+
+function sourceChip(src) {
+  if (!src) return "";
+  return `<span class="chip src" title="${esc(src)}">⌁ 联网</span>`;
+}
+
+function renderTable() {
+  $("#emptyState").style.display = tracks.length ? "none" : "block";
+  $("#tbody").innerHTML = tracks.map(t => `
+    <tr data-id="${esc(t.id)}">
+      <td class="title" title="${esc(t.id)}">${esc(t.title)}</td>
+      <td class="num">${t.bpm ? Math.round(t.bpm) : "—"}</td>
+      <td>${esc(t.camelot || "—")}</td>
+      <td><span class="ebar"><i style="width:${Math.min((t.energy || 0) * 10, 100)}%"></i></span></td>
+      <td>${chips(t.genre_tags)}${sourceChip(t.genre_source)}</td>
+      <td>${chips(t.mood_tags)}</td>
+      <td class="edit-col"><input class="fin" data-kind="genre_final" value="${esc(t.genre_final)}" placeholder="留空=自动"></td>
+      <td class="edit-col"><input class="fin" data-kind="mood_final" value="${esc(t.mood_final)}" placeholder="留空=自动"></td>
+      <td class="row-acts">
+        <button class="save-btn">保存</button>
+        <button class="save-btn" data-act="similar">找相似</button>
+      </td>
+    </tr>`).join("");
+  const sel = $("#startSelect");
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">自动（能量最低）</option>' + tracks.map(t =>
+    `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join("");
+  sel.value = cur;
+}
+
+async function refreshTracks() {
+  tracks = await api("/api/tracks");
+  renderTable();
+}
+
+$("#tbody").addEventListener("click", async e => {
+  const tr = e.target.closest("tr");
+  if (!tr) return;
+  if (e.target.dataset.act === "similar") {
+    await loadSimilar(tr.dataset.id);
+    return;
+  }
+  if (!e.target.classList.contains("save-btn")) return;
+  const body = { id: tr.dataset.id };
+  tr.querySelectorAll("input.fin").forEach(inp => body[inp.dataset.kind] = inp.value);
+  const res = await api("/api/labels", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    tr.classList.add("saved");
+    setTimeout(() => tr.classList.remove("saved"), 900);
+  } else {
+    alert(res.msg || "保存失败");
+  }
+});
+
+// ---- 找相似（以歌选歌）----
+let modules = [];
+
+function modOptions() {
+  return modules.map(m =>
+    `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
+}
+
+async function loadSimilar(id) {
+  const res = await api("/api/similar?id=" + encodeURIComponent(id));
+  if (!res.ok) { alert(res.msg || "查询失败"); return; }
+  $("#simTarget").textContent = res.target.title;
+  $("#similarCard").style.display = "block";
+  $("#simList").innerHTML = res.items.map((it, i) => `
+    <div class="sim-item">
+      <div class="sim-rank">${String(i + 1).padStart(2, "0")}</div>
+      <div class="sim-main">
+        <div class="sim-title">${esc(it.title)}</div>
+        <div class="sim-meta">${it.bpm ? Math.round(it.bpm) : "?"} BPM · ${esc(it.camelot || "?")} · 能量 ${(it.energy ?? 0).toFixed(1)}</div>
+      </div>
+      <div class="sim-score"><b>${Math.round(it.score * 100)}%</b>
+        <div class="ebar"><i style="width:${Math.round(it.score * 100)}%"></i></div></div>
+      <div class="sim-chips">${(it.reasons || []).map(r => `<span class="chip">${esc(r)}</span>`).join("")}</div>
+      <div class="sim-acts">
+        <select class="sim-mod">${modOptions()}</select>
+        <button class="save-btn" data-add="${esc(it.id)}">＋ 加入</button>
+      </div>
+    </div>`).join("");
+  $("#similarCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+$("#simClose").addEventListener("click", () => {
+  $("#similarCard").style.display = "none";
+});
+
+$("#simList").addEventListener("click", async e => {
+  const tid = e.target.dataset.add;
+  if (!tid) return;
+  const mid = e.target.closest(".sim-item").querySelector(".sim-mod").value;
+  if (!mid) { alert("请先在下方「歌曲模块」新建一个模块"); return; }
+  await api(`/api/modules/${mid}/tracks/${encodeURIComponent(tid)}`, { method: "POST" });
+  await refreshModules();
+  e.target.textContent = "✓ 已加入";
+  setTimeout(() => { e.target.textContent = "＋ 加入"; }, 1200);
+});
+
+// ---- 歌曲模块 ----
+async function refreshModules() {
+  modules = await api("/api/modules");
+  renderModuleSelect();
+  renderModuleTracks();
+}
+
+function renderModuleSelect() {
+  const sel = $("#moduleSelect");
+  const cur = sel.value;
+  sel.innerHTML = modules.map(m =>
+    `<option value="${esc(m.id)}">${esc(m.name)}（${m.track_ids.length}）</option>`).join("")
+    || '<option value="">（暂无模块）</option>';
+  if (modules.some(m => m.id === cur)) sel.value = cur;
+}
+
+function renderModuleTracks() {
+  const mod = modules.find(m => m.id === $("#moduleSelect").value);
+  const tb = $("#moduleTbody");
+  if (!mod) {
+    tb.innerHTML = "";
+    $("#moduleEmpty").style.display = "block";
+    return;
+  }
+  const byId = Object.fromEntries(tracks.map(t => [t.id, t]));
+  const rows = mod.track_ids.map(tid => byId[tid]).filter(Boolean);
+  $("#moduleEmpty").style.display = rows.length ? "none" : "block";
+  tb.innerHTML = rows.map((t, i) => `
+    <tr>
+      <td class="num">${String(i + 1).padStart(2, "0")}</td>
+      <td class="title">${esc(t.title)}</td>
+      <td class="num">${t.bpm ? Math.round(t.bpm) : "—"}</td>
+      <td>${esc(t.camelot || "—")}</td>
+      <td class="num">${(t.energy ?? 0).toFixed(1)}</td>
+      <td>${chips(t.genre_tags)}</td>
+      <td class="row-acts"><button class="save-btn" data-rm="${esc(t.id)}">移除</button></td>
+    </tr>`).join("");
+}
+
+$("#moduleSelect").addEventListener("change", renderModuleTracks);
+
+$("#moduleTbody").addEventListener("click", async e => {
+  const tid = e.target.dataset.rm;
+  if (!tid) return;
+  const mid = $("#moduleSelect").value;
+  await api(`/api/modules/${mid}/tracks/${encodeURIComponent(tid)}`, { method: "DELETE" });
+  await refreshModules();
+});
+
+$("#btnNewModule").addEventListener("click", async () => {
+  const name = prompt("模块名称（如：暖场包 / peak 段 / 12 月演出候选）");
+  if (name === null) return;
+  const res = await api("/api/modules", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  await refreshModules();
+  $("#moduleSelect").value = res.id;
+  renderModuleTracks();
+});
+
+$("#btnDelModule").addEventListener("click", async () => {
+  const mid = $("#moduleSelect").value;
+  if (!mid) return;
+  if (!confirm("删除该模块？（曲库不受影响）")) return;
+  await api("/api/modules/" + encodeURIComponent(mid), { method: "DELETE" });
+  await refreshModules();
+});
+
+$("#btnExportModule").addEventListener("click", () => {
+  const mid = $("#moduleSelect").value;
+  if (!mid) { alert("请先选择模块"); return; }
+  window.location.href = "/api/modules/" + encodeURIComponent(mid) + "/export.csv";
+});
+
+async function poll() {
+  const st = await api("/api/status");
+  const pill = $("#statusPill");
+  if (st.running !== lastRunning) {
+    pill.textContent = st.running ? "处理中" : "空闲";
+    pill.classList.toggle("busy", st.running);
+    lastRunning = st.running;
+  }
+  if (st.running) {
+    $("#stepText").textContent = st.step +
+      (st.total ? `（${st.done}/${st.total}）` : "");
+    $("#progressBar").style.width =
+      (st.total ? Math.round(st.done / st.total * 100) : 10) + "%";
+  }
+  const log = (st.log || []).join("\n");
+  if (log !== lastLog) {
+    const box = $("#log");
+    box.textContent = log;
+    box.scrollTop = box.scrollHeight;
+    lastLog = log;
+  }
+  if (lastRunning === false && st.running === false && tracks.length === 0) {
+    refreshTracks();
+  }
+}
+setInterval(poll, 1500);
+
+// 处理结束后刷新表格：记录一个待刷新标记
+let pendingRefresh = false;
+setInterval(async () => {
+  if (pendingRefresh && !lastRunning) {
+    pendingRefresh = false;
+    await refreshTracks();
+    $("#progressBar").style.width = "100%";
+    $("#stepText").textContent = "处理完成，可在下方校正标签。";
+  }
+}, 1200);
+
+$("#btnPipeline").addEventListener("click", async () => {
+  const dir = $("#dirInput").value.trim();
+  if (!dir) { alert("请先填写音乐目录"); return; }
+  localStorage.setItem("dj_dir", dir);
+  const res = await api("/api/pipeline", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dir }),
+  });
+  if (!res.ok) { alert(res.msg || "启动失败"); return; }
+  $("#btnPipeline").disabled = true;
+  $("#btnPredict").disabled = true;
+  pendingRefresh = true;
+  setTimeout(() => { $("#btnPipeline").disabled = false; $("#btnPredict").disabled = false; }, 2500);
+});
+
+$("#btnPredict").addEventListener("click", async () => {
+  const res = await api("/api/predict", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+  });
+  if (!res.ok) { alert(res.msg || "启动失败"); return; }
+  pendingRefresh = true;
+});
+
+$("#btnTrain").addEventListener("click", async () => {
+  const res = await api("/api/train", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+  });
+  if (!res.ok) { alert(res.msg || "启动失败"); return; }
+});
+
+$("#btnGenreOnline").addEventListener("click", async () => {
+  const res = await api("/api/genre-online", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+  });
+  if (!res.ok) { alert(res.msg || "启动失败"); return; }
+  pendingRefresh = true;
+});
+
+$("#btnSaveKey").addEventListener("click", async () => {
+  const res = await api("/api/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ acoustid_key: $("#acoustidKey").value.trim() }),
+  });
+  if (res.ok) alert("已保存，下次联网纠正时生效。");
+});
+
+api("/api/settings").then(s => { $("#acoustidKey").value = s.acoustid_key || ""; });
+
+$("#btnExportSetlist").addEventListener("click", () => {
+  if (!lastSetlist || !lastSetlist.entries || !lastSetlist.entries.length) {
+    alert("请先生成 setlist 再导出"); return;
+  }
+  const escCsv = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const lines = [
+    ["序号", "标题", "BPM", "调", "能量", "段落", "过渡提示"].map(escCsv).join(","),
+    ...lastSetlist.entries.map((e, i) =>
+      [i + 1, e.title, e.bpm ? Math.round(e.bpm) : "", e.camelot || "",
+       e.energy ?? "", e.stage, e.hint].map(escCsv).join(",")),
+  ];
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "setlist.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+$("#btnSetlist").addEventListener("click", async () => {
+  const res = await api("/api/setlist", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      minutes: parseFloat($("#minutesInput").value || "60"),
+      start_id: $("#startSelect").value,
+    }),
+  });
+  lastSetlist = res;
+  const ol = $("#setlist");
+  if (!res.entries || !res.entries.length) {
+    ol.innerHTML = `<div class="empty">未能生成 setlist：${esc((res.warnings || []).join("；"))}</div>`;
+    $("#energySvg").style.display = "none";
+    $("#setWarn").textContent = "";
+    return;
+  }
+  ol.innerHTML = res.entries.map((e, i) => `
+    <li>
+      <span class="no">${String(i + 1).padStart(2, "0")}</span>
+      <span class="ttl">${esc(e.title)}</span>
+      <span class="meta">${e.bpm ? Math.round(e.bpm) : "?"} BPM · ${esc(e.camelot || "?")} · 能量 ${(e.energy ?? 0).toFixed(1)}</span>
+      <span class="badge">${esc(e.stage)}</span>
+      <span class="hint-txt">${esc(e.hint)}</span>
+    </li>`).join("");
+  $("#setWarn").textContent = (res.warnings || []).map(w => "⚠ " + w).join("　");
+  const svg = $("#energySvg"), line = $("#energyLine");
+  const n = res.entries.length;
+  if (n > 1) {
+    const pts = res.entries.map((e, i) => {
+      const x = 10 + i / (n - 1) * 580;
+      const y = 100 - Math.min(e.energy ?? 0, 10) / 10 * 88;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    line.setAttribute("points", pts);
+    svg.style.display = "block";
+  } else {
+    svg.style.display = "none";
+  }
+});
+
+$("#dirInput").value = localStorage.getItem("dj_dir") || "";
+refreshTracks();
+refreshModules();
+poll();
+</script>
+</body>
+</html>

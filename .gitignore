@@ -1,0 +1,31 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 曲库数据库（含本机文件路径，不上传）
+*.db
+*.sqlite
+*.sqlite3
+
+# AI 模型缓存（首次运行自动下载，约 1.8GB）
+models/
+
+# 测试音频（可由 tests/make_test_audio.py 重新生成）
+tests/testdata/*.wav
+
+# 系统与编辑器文件
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# 导出结果
+*.csv
+!tests/testdata/*.csv
