@@ -81,8 +81,12 @@
   button:hover, a.btn:hover { filter: brightness(1.12); }
   button:active, a.btn:active { transform: scale(.98); }
   button:disabled { opacity: .45; cursor: default; filter: none; }
-  button.ghost, a.btn.ghost { background: var(--chip); color: var(--fg); }
-  button.ghost:hover, a.btn.ghost:hover { background: #2a3442; filter: none; }
+  /* 次级按钮：必须有可见描边，否则深色底上会被误认为「禁用」 */
+  button.ghost, a.btn.ghost {
+    background: var(--chip); color: var(--fg);
+    border: 1px solid #2f3a4a;
+  }
+  button.ghost:hover, a.btn.ghost:hover { background: #2a3442; border-color: var(--faint); filter: none; }
   button.quiet {
     background: transparent; color: var(--dim); padding: 6px 10px;
     border: 1px solid var(--line);
